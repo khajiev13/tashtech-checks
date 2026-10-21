@@ -7,11 +7,27 @@ import subprocess
 import tempfile
 
 import check50
-import check50.c
 
 
 INVALID = "Invalid choice. Choose a listed coffee ID or 0."
 OUTPUT_LIMIT = 262144
+
+
+def compile_source(source, executable):
+    # A healthy compiler can take several seconds when a Codespace starts.
+    process = check50.run(f"clang {source} -o {executable} -std=c11 -ggdb -lm -lcs50")
+    try:
+        output = process.stdout(timeout=30)
+    finally:
+        process.kill()
+    if process.exitcode != 0:
+        lines = re.sub(r"\x1B\[[0-?]*[ -/]*[@-~]", "", output).splitlines()
+        if len(lines) > 50:
+            lines = lines[:25] + lines[-25:]
+        for line in lines:
+            check50.log(line)
+        raise check50.Failure(f"{source} failed to compile",
+                              help="Read the compiler messages above; keep the supplied function names and parameters.")
 
 
 def limit_output():
@@ -63,12 +79,12 @@ def exists():
     check50.exists("coffee_machine.c")
 
 
-@check50.check(exists)
+@check50.check(exists, timeout=90)
 def compiles():
     """coffee_machine.c and its three required functions compile"""
-    check50.c.compile("coffee_machine.c", lcs50=True)
+    compile_source("coffee_machine.c", "coffee_machine")
     check50.include("harness.c")
-    check50.c.compile("harness.c", exe_name="coffee_checks", lcs50=True)
+    compile_source("harness.c", "coffee_checks")
 
 
 @check50.check(compiles)
